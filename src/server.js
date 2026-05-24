@@ -1,0 +1,46 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { connectDB } from './config/db.js';
+import authRoutes from './routes/auth.js';
+import bookRoutes from './routes/books.js';
+import orderRoutes from './routes/orders.js';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Enable CORS
+app.use(cors({
+  origin: '*', // Allow all origins for testing; can restrict in production
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parser
+app.use(express.json());
+
+// Basic API check endpoint
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Advanced Online Bookstore API',
+    status: 'online',
+    database: process.env.USE_MOCK_DB === 'true' ? 'Fallback JSON DB' : 'MongoDB'
+  });
+});
+
+// Setup API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/books', bookRoutes);
+app.use('/api/orders', orderRoutes);
+
+// Database connection initialization
+await connectDB();
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📡 Base URL: http://localhost:${PORT}`);
+});
