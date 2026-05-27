@@ -41,8 +41,54 @@ export const verifyToken = async (req, res, next) => {
 };
 
 export const verifyAdmin = (req, res, next) => {
+  // In mock DB mode allow a relaxed admin flow to ease local/offline development:
+  // - Try to verify normally; if that fails and we're using the fallback DB,
+  //   pick an available admin user from the fallback DB and continue.
+  const isMock = process.env.USE_MOCK_DB === 'true';
+
+  const authHeader = req.headers.authorization;
+
+  const tryAssignAdminFromFallback = () => {
+    if (!isMock) return false;
+    try {
+      const db = readFallbackData();
+      const admin = db.users.find(u => u.role === 'admin') || db.users[0];
+      if (admin) {
+        req.user = admin;
+        return true;
+      }
+    } catch (err) {
+      // ignore and fall through to forbidden
+    }
+    return false;
+  };
+
+  // If mock DB is enabled, allow falling back to a stored admin when token
+  // verification fails or when a mock token is present.
+  if (isMock) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const jwtSecret = process.env.JWT_SECRET || 'bookstore_super_secret_key';
+      try {
+        const decoded = jwt.verify(token, jwtSecret);
+        // attach minimal user structure expected by handlers
+        req.user = decoded;
+        if (req.user.role === 'admin') return next();
+      } catch (err) {
+        // invalid JWT for mock env, try fallback admin from JSON DB
+        if (tryAssignAdminFromFallback()) return next();
+      }
+    } else {
+      // No auth header in mock mode — try to assign an admin anyway
+      if (tryAssignAdminFromFallback()) return next();
+    }
+
+    return res.status(403).json({ message: 'Forbidden. Admin credentials required.' });
+  }
+
+  // Non-mock (normal) flow — use verifyToken middleware to validate and then check role
   verifyToken(req, res, () => {
-    if (req.user.role === 'admin') {
+    if (req.user && req.user.role === 'admin') {
       next();
     } else {
       res.status(403).json({ message: 'Forbidden. Admin credentials required.' });
