@@ -15,7 +15,7 @@ router.post('/login', async (req, res) => {
   // Static admin credentials check
   if (username && password) {
     if (username === 'admin' && password === 'admin123') {
-      const adminPhone = (process.env.ADMIN_PHONE || '0766572148').trim().replace(/\s+/g, '');
+      const adminPhone = (process.env.ADMIN_PHONE || '0774454785').trim().replace(/\s+/g, '');
       let user;
       const isMock = process.env.USE_MOCK_DB === 'true';
 
@@ -82,7 +82,7 @@ router.post('/login', async (req, res) => {
 
   // Check if phone matches configured admin number (normalizing prefix formats)
   const isAdmin = (phone) => {
-    const adminEnv = (process.env.ADMIN_PHONE || '0766572148').trim().replace(/\s+/g, '');
+    const adminEnv = (process.env.ADMIN_PHONE || '0774454785').trim().replace(/\s+/g, '');
     const cleanPhone = phone.replace(/^\+94/, '0');
     const cleanAdmin = adminEnv.replace(/^\+94/, '0');
     return cleanPhone === cleanAdmin;
