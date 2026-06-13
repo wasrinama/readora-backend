@@ -30,6 +30,7 @@ app.get('/', (req, res) => {
   res.json({
     name: 'Advanced Online Bookstore API',
     status: 'online',
+    version: '1.0.2-test-deploy',
     database: process.env.USE_MOCK_DB === 'true' ? 'Fallback JSON DB' : 'MongoDB'
   });
 });
