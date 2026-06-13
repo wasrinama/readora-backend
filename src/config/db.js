@@ -19,38 +19,12 @@ let connectionAttempted = false;
 ----------------------------*/
 const initFallbackDb = () => {
   try {
-    const defaultCategories = [
-      { _id: 'cat_1', name: 'Fiction' },
-      { _id: 'cat_2', name: 'Non Fiction' },
-      { _id: 'cat_3', name: 'Kavithai (Poetry)' },
-      { _id: 'cat_4', name: 'Novel' },
-      { _id: 'cat_5', name: 'Short Stories' },
-      { _id: 'cat_6', name: 'History' },
-      { _id: 'cat_7', name: 'Education' },
-      { _id: 'cat_8', name: 'Children\'s Books' },
-      { _id: 'cat_9', name: 'Religion' },
-      { _id: 'cat_10', name: 'Biography' },
-      { _id: 'cat_11', name: 'Science' },
-      { _id: 'cat_12', name: 'Technology' },
-      { _id: 'cat_13', name: 'Business' },
-      { _id: 'cat_14', name: 'Self Development' }
-    ];
-
-    if (fs.existsSync(fallbackDbPath)) {
-      // If it exists, ensure the categories array is present
-      const data = JSON.parse(fs.readFileSync(fallbackDbPath, 'utf-8'));
-      if (!data.categories) {
-        data.categories = defaultCategories;
-        fs.writeFileSync(fallbackDbPath, JSON.stringify(data, null, 2), 'utf-8');
-      }
-      return;
-    }
+    if (fs.existsSync(fallbackDbPath)) return;
 
     const initialData = {
       books: [],
       users: [],
-      orders: [],
-      categories: defaultCategories
+      orders: []
     };
 
     fs.writeFileSync(
@@ -59,7 +33,7 @@ const initFallbackDb = () => {
       'utf-8'
     );
 
-    console.log('📂 Fallback DB ready with seeded categories');
+    console.log('📂 Fallback DB ready');
   } catch (err) {
     console.error('❌ Fallback DB init failed:', err.message);
   }

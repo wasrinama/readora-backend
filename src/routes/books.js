@@ -5,246 +5,6 @@ import { verifyAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Transliteration maps for Thanglish/Tamil phonetic conversion
-const independentVowels = {
-  'அ': 'a', 'ஆ': 'aa', 'இ': 'i', 'ஈ': 'ee', 'உ': 'u', 'ஊ': 'oo',
-  'எ': 'e', 'ஏ': 'ae', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'oo', 'ஔ': 'au',
-  'ஃ': 'h'
-};
-
-const consonants = {
-  'க': 'k', 'ங': 'ng', 'ச': 's', 'ஞ': 'ny', 'ட': 't', 'ண': 'n',
-  'த': 'th', 'ந': 'n', 'ப': 'p', 'ம': 'm', 'ய': 'y', 'ர': 'r',
-  'ல': 'l', 'வ': 'v', 'ழ': 'zh', 'ள': 'l', 'ற': 'r', 'ன': 'n',
-  'ஜ': 'j', 'ஷ': 'sh', 'ஸ': 's', 'ஹ': 'h'
-};
-
-const vowelDiacritics = {
-  '\u0bbe': 'a', // ா (aa)
-  '\u0bbf': 'i', // ி (i)
-  '\u0bc0': 'ee', // ீ (ee)
-  '\u0bc1': 'u', // ு (u)
-  '\u0bc2': 'oo', // ூ (oo)
-  '\u0bc6': 'e', // ெ (e)
-  '\u0bc7': 'ae', // ே (ae)
-  '\u0bc8': 'ai', // ை (ai)
-  '\u0bca': 'o', // ொ (o)
-  '\u0bcb': 'oo', // ோ (oo)
-  '\u0bcc': 'au', // ௌ (au)
-  '\u0bcd': ''    // ் (pulli)
-};
-
-function transliterateTamilToLatin(text) {
-  if (!text) return '';
-  let result = '';
-  const chars = Array.from(text);
-  
-  for (let i = 0; i < chars.length; i++) {
-    const char = chars[i];
-    
-    if (independentVowels[char] !== undefined) {
-      result += independentVowels[char];
-    } else if (consonants[char] !== undefined) {
-      const nextChar = chars[i + 1];
-      if (nextChar && vowelDiacritics[nextChar] !== undefined) {
-        result += consonants[char] + vowelDiacritics[nextChar];
-        i++; // Skip the diacritic character
-      } else {
-        result += consonants[char] + 'a';
-      }
-    } else {
-      result += char;
-    }
-  }
-  return result;
-}
-
-function normalizePhonetic(str) {
-  if (!str) return '';
-  
-  // Transliterate Tamil to Latin
-  let res = transliterateTamilToLatin(str).toLowerCase();
-  
-  // Normalize vowels
-  res = res.replace(/aa/g, 'a')
-           .replace(/ee/g, 'i')
-           .replace(/oo/g, 'u')
-           .replace(/ae/g, 'e')
-           .replace(/ow/g, 'au')
-           .replace(/y/g, 'i');
-           
-  // Normalize consonants
-  res = res.replace(/ch/g, 's')
-           .replace(/sh/g, 's')
-           .replace(/c/g, 's')
-           .replace(/z/g, 's')
-           .replace(/zh/g, 'l')
-           .replace(/th/g, 't')
-           .replace(/d/g, 't')
-           .replace(/g/g, 'k')
-           .replace(/b/g, 'p')
-           .replace(/w/g, 'v');
-           
-  // Remove duplicate consecutive characters
-  let clean = '';
-  for (let i = 0; i < res.length; i++) {
-    if (res[i] !== res[i - 1]) {
-      clean += res[i];
-    }
-  }
-  return clean;
-}
-
-function getLevenshteinDistance(a, b) {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-
-// Function to score search relevance
-function scoreBookRelevance(book, search) {
-  const query = search.trim();
-  const cleanQuery = query.toLowerCase();
-  
-  // Basic attributes
-  const cleanTitle = (book.title || '').trim().toLowerCase();
-  const cleanAuthor = (book.author || '').trim().toLowerCase();
-  const cleanDesc = (book.description || '').trim().toLowerCase();
-  const cleanCategory = (book.category || '').trim().toLowerCase();
-  const cleanLanguage = (book.language || '').trim().toLowerCase();
-  const cleanPublisher = (book.publisher || '').trim().toLowerCase();
-  const cleanIsbn = (book.isbn || '').replace(/[\s-]+/g, '').toLowerCase();
-  const rawQueryIsbn = cleanQuery.replace(/[\s-]+/g, '');
-
-  const normQuery = normalizePhonetic(query);
-  const flatQuery = normQuery.replace(/\s+/g, '');
-  
-  const normTitle = normalizePhonetic(book.title || '');
-  const flatTitle = normTitle.replace(/\s+/g, '');
-  
-  const normAuthor = normalizePhonetic(book.author || '');
-  const flatAuthor = normAuthor.replace(/\s+/g, '');
-  
-  const normDesc = normalizePhonetic(book.description || '');
-  
-  const normPub = book.publisher ? normalizePhonetic(book.publisher) : '';
-  const flatPub = normPub.replace(/\s+/g, '');
-
-  const normCat = book.category ? normalizePhonetic(book.category) : '';
-  const flatCat = normCat.replace(/\s+/g, '');
-
-  let score = 0;
-
-  // 1. Exact matches (Title, Author, ISBN, Publisher)
-  if (cleanQuery === cleanTitle) {
-    score += 1000;
-  } else if (rawQueryIsbn && cleanIsbn === rawQueryIsbn) {
-    score += 1000;
-  } else if (cleanQuery === cleanAuthor) {
-    score += 800;
-  } else if (cleanQuery === cleanPublisher) {
-    score += 700;
-  }
-  
-  // 2. Phonetic exact match (spaces ignored, e.g. "ponniyinselvan" vs "ponniyin selvan")
-  else if (flatQuery === flatTitle) {
-    score += 700;
-  } else if (flatQuery === flatAuthor) {
-    score += 600;
-  } else if (flatQuery === flatPub) {
-    score += 600;
-  }
-  
-  // 3. Substring match on original text
-  else if (cleanTitle.includes(cleanQuery)) {
-    score += 500;
-  } else if (rawQueryIsbn.length >= 4 && cleanIsbn.includes(rawQueryIsbn)) {
-    score += 500;
-  } else if (cleanAuthor.includes(cleanQuery)) {
-    score += 400;
-  } else if (cleanPublisher.includes(cleanQuery)) {
-    score += 300;
-  } else if (cleanCategory === cleanQuery) {
-    score += 600;
-  } else if (cleanCategory.includes(cleanQuery)) {
-    score += 200;
-  } else if (cleanLanguage === cleanQuery) {
-    score += 600;
-  } else if (cleanLanguage.includes(cleanQuery)) {
-    score += 200;
-  }
-  
-  // 4. Substring match on phonetic text
-  else if (normTitle.includes(normQuery)) {
-    score += 300;
-  } else if (normAuthor.includes(normQuery)) {
-    score += 250;
-  } else if (normPub && normPub.includes(normQuery)) {
-    score += 200;
-  } else if (normCat && normCat.includes(normQuery)) {
-    score += 200;
-  }
-  
-  // 5. Fuzzy Levenshtein match
-  else {
-    const titleDist = getLevenshteinDistance(flatQuery, flatTitle);
-    const maxLenTitle = Math.max(flatQuery.length, flatTitle.length);
-    if (titleDist <= 2 || (maxLenTitle > 4 && titleDist / maxLenTitle <= 0.3)) {
-      score += Math.max(0, 200 - titleDist * 30);
-    }
-    
-    const authorDist = getLevenshteinDistance(flatQuery, flatAuthor);
-    const maxLenAuthor = Math.max(flatQuery.length, flatAuthor.length);
-    if (authorDist <= 2 || (maxLenAuthor > 4 && authorDist / maxLenAuthor <= 0.3)) {
-      score += Math.max(0, 150 - authorDist * 30);
-    }
-  }
-
-  // 6. Individual word matches (partial matching)
-  const queryWords = normQuery.split(/\s+/).filter(Boolean);
-  const titleWords = normTitle.split(/\s+/).filter(Boolean);
-  const authorWords = normAuthor.split(/\s+/).filter(Boolean);
-
-  let wordMatches = 0;
-  for (const qw of queryWords) {
-    if (qw.length < 2) continue; // Skip single letter search words
-    
-    const matchesTitle = titleWords.some(tw => tw.includes(qw) || getLevenshteinDistance(qw, tw) <= 1);
-    const matchesAuthor = authorWords.some(aw => aw.includes(qw) || getLevenshteinDistance(qw, aw) <= 1);
-    const matchesDesc = normDesc.includes(qw);
-    const matchesPub = normPub && normPub.includes(qw);
-    const matchesCat = normCat && normCat.includes(qw);
-    
-    if (matchesTitle || matchesAuthor || matchesDesc || matchesPub || matchesCat) {
-      wordMatches++;
-    }
-  }
-
-  if (queryWords.length > 0 && wordMatches > 0) {
-    score += (wordMatches / queryWords.length) * 100;
-  }
-
-  return score;
-}
-
 // @route   GET /api/books
 // @desc    Get all books with optional search and category filters
 router.get('/', async (req, res) => {
@@ -252,11 +12,9 @@ router.get('/', async (req, res) => {
   const isMock = process.env.USE_MOCK_DB === 'true';
 
   try {
-    let books = [];
-
     if (isMock) {
       const db = readFallbackData();
-      books = [...db.books];
+      let books = [...db.books];
 
       // Filter by category
       if (category && category !== 'All') {
@@ -272,6 +30,17 @@ router.get('/', async (req, res) => {
       if (featured === 'true') {
         books = books.filter(b => b.featured === true);
       }
+
+      // Filter by search (title or author)
+      if (search) {
+        const query = search.toLowerCase();
+        books = books.filter(b => 
+          b.title.toLowerCase().includes(query) || 
+          b.author.toLowerCase().includes(query)
+        );
+      }
+
+      return res.json(books);
     } else {
       let filter = {};
 
@@ -287,124 +56,18 @@ router.get('/', async (req, res) => {
         filter.featured = true;
       }
 
-      // Fetch from MongoDB
-      books = await Book.find(filter);
-    }
+      if (search) {
+        filter.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { author: { $regex: search, $options: 'i' } }
+        ];
+      }
 
-    // Apply intelligent phonetic search sorting if query is provided
-    if (search) {
-      books = books
-        .map(b => {
-          const bookObj = b.toObject ? b.toObject() : b;
-          return {
-            ...bookObj,
-            _searchScore: scoreBookRelevance(bookObj, search)
-          };
-        })
-        .filter(b => b._searchScore > 0)
-        .sort((a, b) => b._searchScore - a._searchScore);
-    } else if (!isMock) {
-      // Sort by latest created if not mock and no search query
-      books.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const books = await Book.find(filter).sort({ createdAt: -1 });
+      res.json(books);
     }
-
-    res.json(books);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving books', error: error.message });
-  }
-});
-
-// @route   GET /api/books/suggestions
-// @desc    Get live autocomplete suggestions for Books, Authors, and Publishers
-router.get('/suggestions', async (req, res) => {
-  const { q } = req.query;
-  if (!q || !q.trim()) {
-    return res.json({ books: [], authors: [], publishers: [] });
-  }
-
-  const query = q.trim();
-  const cleanQuery = query.toLowerCase();
-  const normQuery = normalizePhonetic(query);
-  const flatQuery = normQuery.replace(/\s+/g, '');
-
-  const isMock = process.env.USE_MOCK_DB === 'true';
-
-  try {
-    let books = [];
-    if (isMock) {
-      const db = readFallbackData();
-      books = db.books || [];
-    } else {
-      books = await Book.find({});
-    }
-
-    const matchedBooks = [];
-    const matchedAuthors = new Set();
-    const matchedPublishers = new Set();
-
-    for (const b of books) {
-      const bookObj = b.toObject ? b.toObject() : b;
-      
-      const cleanTitle = (bookObj.title || '').trim().toLowerCase();
-      const cleanAuthor = (bookObj.author || '').trim().toLowerCase();
-      const cleanPub = (bookObj.publisher || '').trim().toLowerCase();
-      
-      const normTitle = normalizePhonetic(bookObj.title || '');
-      const flatTitle = normTitle.replace(/\s+/g, '');
-      
-      const normAuthor = normalizePhonetic(bookObj.author || '');
-      const flatAuthor = normAuthor.replace(/\s+/g, '');
-      
-      const normPub = bookObj.publisher ? normalizePhonetic(bookObj.publisher) : '';
-      const flatPub = normPub.replace(/\s+/g, '');
-
-      let isBookMatch = false;
-      let isAuthorMatch = false;
-      let isPubMatch = false;
-
-      // Book Title matching
-      if (cleanTitle.includes(cleanQuery) || flatTitle.includes(flatQuery)) {
-        isBookMatch = true;
-      }
-      
-      // Author matching
-      if (cleanAuthor.includes(cleanQuery) || flatAuthor.includes(flatQuery)) {
-        isAuthorMatch = true;
-      }
-
-      // Publisher matching
-      if (cleanPub && (cleanPub.includes(cleanQuery) || flatPub.includes(flatQuery))) {
-        isPubMatch = true;
-      }
-
-      // Add to results
-      if (isBookMatch) {
-        matchedBooks.push({
-          _id: bookObj._id,
-          title: bookObj.title,
-          author: bookObj.author,
-          coverImage: bookObj.coverImage,
-          category: bookObj.category,
-          language: bookObj.language
-        });
-      }
-
-      if (isAuthorMatch) {
-        matchedAuthors.add(bookObj.author);
-      }
-
-      if (isPubMatch && bookObj.publisher) {
-        matchedPublishers.add(bookObj.publisher);
-      }
-    }
-
-    res.json({
-      books: matchedBooks.slice(0, 5),
-      authors: Array.from(matchedAuthors).slice(0, 5),
-      publishers: Array.from(matchedPublishers).slice(0, 5)
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching suggestions', error: error.message });
   }
 });
 
@@ -436,10 +99,7 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/books
 // @desc    Create a new book (Admin only)
 router.post('/', verifyAdmin, async (req, res) => {
-  const { 
-    title, author, price, category, description, coverImage, stock, featured, language,
-    publisher, pages, publishYear, isbn, availabilityStatus 
-  } = req.body;
+  const { title, author, price, category, description, coverImage, stock, featured, language } = req.body;
   const isMock = process.env.USE_MOCK_DB === 'true';
 
   if (!title || !author || !price || !category || !description) {
@@ -460,12 +120,7 @@ router.post('/', verifyAdmin, async (req, res) => {
         stock: Number(stock) || 10,
         featured: featured === true || featured === 'true',
         rating: 4.5,
-        language: language || 'English',
-        publisher: publisher || '',
-        pages: Number(pages) || 0,
-        publishYear: Number(publishYear) || new Date().getFullYear(),
-        isbn: isbn || '',
-        availabilityStatus: availabilityStatus || 'In Stock'
+        language: language || 'English'
       };
 
       db.books.push(newBook);
@@ -481,12 +136,7 @@ router.post('/', verifyAdmin, async (req, res) => {
         coverImage,
         stock,
         featured,
-        language,
-        publisher,
-        pages,
-        publishYear,
-        isbn,
-        availabilityStatus
+        language
       });
 
       await newBook.save();
@@ -501,10 +151,7 @@ router.post('/', verifyAdmin, async (req, res) => {
 // @desc    Update an existing book (Admin only)
 router.put('/:id', verifyAdmin, async (req, res) => {
   const isMock = process.env.USE_MOCK_DB === 'true';
-  const { 
-    title, author, price, category, description, coverImage, stock, featured, language,
-    publisher, pages, publishYear, isbn, availabilityStatus 
-  } = req.body;
+  const { title, author, price, category, description, coverImage, stock, featured, language } = req.body;
 
   try {
     if (isMock) {
@@ -525,12 +172,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
         coverImage: coverImage || db.books[index].coverImage,
         stock: stock !== undefined ? Number(stock) : db.books[index].stock,
         featured: featured !== undefined ? (featured === true || featured === 'true') : db.books[index].featured,
-        language: language || db.books[index].language,
-        publisher: publisher !== undefined ? publisher : db.books[index].publisher,
-        pages: pages !== undefined ? Number(pages) : db.books[index].pages,
-        publishYear: publishYear !== undefined ? Number(publishYear) : db.books[index].publishYear,
-        isbn: isbn !== undefined ? isbn : db.books[index].isbn,
-        availabilityStatus: availabilityStatus || db.books[index].availabilityStatus
+        language: language || db.books[index].language
       };
 
       db.books[index] = updatedBook;
@@ -539,10 +181,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
     } else {
       const updatedBook = await Book.findByIdAndUpdate(
         req.params.id,
-        { 
-          title, author, price, category, description, coverImage, stock, featured, language,
-          publisher, pages, publishYear, isbn, availabilityStatus 
-        },
+        { title, author, price, category, description, coverImage, stock, featured, language },
         { new: true, runValidators: true }
       );
 
@@ -586,4 +225,3 @@ router.delete('/:id', verifyAdmin, async (req, res) => {
 });
 
 export default router;
-export { scoreBookRelevance, normalizePhonetic, transliterateTamilToLatin };
