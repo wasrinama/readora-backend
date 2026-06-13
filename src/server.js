@@ -5,6 +5,7 @@ import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import bookRoutes from './routes/books.js';
 import orderRoutes from './routes/orders.js';
+import settingsRoutes from './routes/settings.js';
 
 // Load environment variables
 dotenv.config();
@@ -36,6 +37,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Database connection initialization
 await connectDB();
