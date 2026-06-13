@@ -19,8 +19,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parser
-app.use(express.json());
+// Body parser with increased limit to support base64 image uploads
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Basic API check endpoint
 app.get('/', (req, res) => {
