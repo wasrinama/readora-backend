@@ -48,6 +48,29 @@ const bookSchema = new mongoose.Schema({
     type: String,
     enum: ['English', 'Tamil', 'Sinhala'],
     default: 'English'
+  },
+  publisher: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  pages: {
+    type: Number,
+    default: 0
+  },
+  publishYear: {
+    type: Number,
+    default: new Date().getFullYear()
+  },
+  isbn: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  availabilityStatus: {
+    type: String,
+    enum: ['In Stock', 'Out of Stock', 'Pre-Order'],
+    default: 'In Stock'
   }
 }, {
   timestamps: true

@@ -123,32 +123,45 @@ function getLevenshteinDistance(a, b) {
 function scoreBookRelevance(book, search) {
   const query = search.trim();
   const cleanQuery = query.toLowerCase();
-  const cleanTitle = book.title.trim().toLowerCase();
-  const cleanAuthor = book.author.trim().toLowerCase();
-  const cleanDesc = (book.description || '').trim().toLowerCase();
   
+  // Basic attributes
+  const cleanTitle = (book.title || '').trim().toLowerCase();
+  const cleanAuthor = (book.author || '').trim().toLowerCase();
+  const cleanDesc = (book.description || '').trim().toLowerCase();
+  const cleanCategory = (book.category || '').trim().toLowerCase();
+  const cleanLanguage = (book.language || '').trim().toLowerCase();
+  const cleanPublisher = (book.publisher || '').trim().toLowerCase();
+  const cleanIsbn = (book.isbn || '').replace(/[\s-]+/g, '').toLowerCase();
+  const rawQueryIsbn = cleanQuery.replace(/[\s-]+/g, '');
+
   const normQuery = normalizePhonetic(query);
   const flatQuery = normQuery.replace(/\s+/g, '');
   
-  const normTitle = normalizePhonetic(book.title);
+  const normTitle = normalizePhonetic(book.title || '');
   const flatTitle = normTitle.replace(/\s+/g, '');
   
-  const normAuthor = normalizePhonetic(book.author);
+  const normAuthor = normalizePhonetic(book.author || '');
   const flatAuthor = normAuthor.replace(/\s+/g, '');
   
   const normDesc = normalizePhonetic(book.description || '');
-  const flatDesc = normDesc.replace(/\s+/g, '');
   
   const normPub = book.publisher ? normalizePhonetic(book.publisher) : '';
   const flatPub = normPub.replace(/\s+/g, '');
 
+  const normCat = book.category ? normalizePhonetic(book.category) : '';
+  const flatCat = normCat.replace(/\s+/g, '');
+
   let score = 0;
 
-  // 1. Exact matches (Tamil or English)
+  // 1. Exact matches (Title, Author, ISBN, Publisher)
   if (cleanQuery === cleanTitle) {
+    score += 1000;
+  } else if (rawQueryIsbn && cleanIsbn === rawQueryIsbn) {
     score += 1000;
   } else if (cleanQuery === cleanAuthor) {
     score += 800;
+  } else if (cleanQuery === cleanPublisher) {
+    score += 700;
   }
   
   // 2. Phonetic exact match (spaces ignored, e.g. "ponniyinselvan" vs "ponniyin selvan")
@@ -156,13 +169,27 @@ function scoreBookRelevance(book, search) {
     score += 700;
   } else if (flatQuery === flatAuthor) {
     score += 600;
+  } else if (flatQuery === flatPub) {
+    score += 600;
   }
   
   // 3. Substring match on original text
   else if (cleanTitle.includes(cleanQuery)) {
     score += 500;
+  } else if (rawQueryIsbn.length >= 4 && cleanIsbn.includes(rawQueryIsbn)) {
+    score += 500;
   } else if (cleanAuthor.includes(cleanQuery)) {
     score += 400;
+  } else if (cleanPublisher.includes(cleanQuery)) {
+    score += 300;
+  } else if (cleanCategory === cleanQuery) {
+    score += 600;
+  } else if (cleanCategory.includes(cleanQuery)) {
+    score += 200;
+  } else if (cleanLanguage === cleanQuery) {
+    score += 600;
+  } else if (cleanLanguage.includes(cleanQuery)) {
+    score += 200;
   }
   
   // 4. Substring match on phonetic text
@@ -170,9 +197,13 @@ function scoreBookRelevance(book, search) {
     score += 300;
   } else if (normAuthor.includes(normQuery)) {
     score += 250;
+  } else if (normPub && normPub.includes(normQuery)) {
+    score += 200;
+  } else if (normCat && normCat.includes(normQuery)) {
+    score += 200;
   }
   
-  // 5. Fuzzy Levenshtein match on title
+  // 5. Fuzzy Levenshtein match
   else {
     const titleDist = getLevenshteinDistance(flatQuery, flatTitle);
     const maxLenTitle = Math.max(flatQuery.length, flatTitle.length);
@@ -180,7 +211,6 @@ function scoreBookRelevance(book, search) {
       score += Math.max(0, 200 - titleDist * 30);
     }
     
-    // Fuzzy Levenshtein match on author
     const authorDist = getLevenshteinDistance(flatQuery, flatAuthor);
     const maxLenAuthor = Math.max(flatQuery.length, flatAuthor.length);
     if (authorDist <= 2 || (maxLenAuthor > 4 && authorDist / maxLenAuthor <= 0.3)) {
@@ -201,8 +231,9 @@ function scoreBookRelevance(book, search) {
     const matchesAuthor = authorWords.some(aw => aw.includes(qw) || getLevenshteinDistance(qw, aw) <= 1);
     const matchesDesc = normDesc.includes(qw);
     const matchesPub = normPub && normPub.includes(qw);
+    const matchesCat = normCat && normCat.includes(qw);
     
-    if (matchesTitle || matchesAuthor || matchesDesc || matchesPub) {
+    if (matchesTitle || matchesAuthor || matchesDesc || matchesPub || matchesCat) {
       wordMatches++;
     }
   }
@@ -283,6 +314,100 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @route   GET /api/books/suggestions
+// @desc    Get live autocomplete suggestions for Books, Authors, and Publishers
+router.get('/suggestions', async (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) {
+    return res.json({ books: [], authors: [], publishers: [] });
+  }
+
+  const query = q.trim();
+  const cleanQuery = query.toLowerCase();
+  const normQuery = normalizePhonetic(query);
+  const flatQuery = normQuery.replace(/\s+/g, '');
+
+  const isMock = process.env.USE_MOCK_DB === 'true';
+
+  try {
+    let books = [];
+    if (isMock) {
+      const db = readFallbackData();
+      books = db.books || [];
+    } else {
+      books = await Book.find({});
+    }
+
+    const matchedBooks = [];
+    const matchedAuthors = new Set();
+    const matchedPublishers = new Set();
+
+    for (const b of books) {
+      const bookObj = b.toObject ? b.toObject() : b;
+      
+      const cleanTitle = (bookObj.title || '').trim().toLowerCase();
+      const cleanAuthor = (bookObj.author || '').trim().toLowerCase();
+      const cleanPub = (bookObj.publisher || '').trim().toLowerCase();
+      
+      const normTitle = normalizePhonetic(bookObj.title || '');
+      const flatTitle = normTitle.replace(/\s+/g, '');
+      
+      const normAuthor = normalizePhonetic(bookObj.author || '');
+      const flatAuthor = normAuthor.replace(/\s+/g, '');
+      
+      const normPub = bookObj.publisher ? normalizePhonetic(bookObj.publisher) : '';
+      const flatPub = normPub.replace(/\s+/g, '');
+
+      let isBookMatch = false;
+      let isAuthorMatch = false;
+      let isPubMatch = false;
+
+      // Book Title matching
+      if (cleanTitle.includes(cleanQuery) || flatTitle.includes(flatQuery)) {
+        isBookMatch = true;
+      }
+      
+      // Author matching
+      if (cleanAuthor.includes(cleanQuery) || flatAuthor.includes(flatQuery)) {
+        isAuthorMatch = true;
+      }
+
+      // Publisher matching
+      if (cleanPub && (cleanPub.includes(cleanQuery) || flatPub.includes(flatQuery))) {
+        isPubMatch = true;
+      }
+
+      // Add to results
+      if (isBookMatch) {
+        matchedBooks.push({
+          _id: bookObj._id,
+          title: bookObj.title,
+          author: bookObj.author,
+          coverImage: bookObj.coverImage,
+          category: bookObj.category,
+          language: bookObj.language
+        });
+      }
+
+      if (isAuthorMatch) {
+        matchedAuthors.add(bookObj.author);
+      }
+
+      if (isPubMatch && bookObj.publisher) {
+        matchedPublishers.add(bookObj.publisher);
+      }
+    }
+
+    res.json({
+      books: matchedBooks.slice(0, 5),
+      authors: Array.from(matchedAuthors).slice(0, 5),
+      publishers: Array.from(matchedPublishers).slice(0, 5)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching suggestions', error: error.message });
+  }
+});
+
 // @route   GET /api/books/:id
 // @desc    Get a single book by ID
 router.get('/:id', async (req, res) => {
@@ -311,7 +436,10 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/books
 // @desc    Create a new book (Admin only)
 router.post('/', verifyAdmin, async (req, res) => {
-  const { title, author, price, category, description, coverImage, stock, featured, language } = req.body;
+  const { 
+    title, author, price, category, description, coverImage, stock, featured, language,
+    publisher, pages, publishYear, isbn, availabilityStatus 
+  } = req.body;
   const isMock = process.env.USE_MOCK_DB === 'true';
 
   if (!title || !author || !price || !category || !description) {
@@ -332,7 +460,12 @@ router.post('/', verifyAdmin, async (req, res) => {
         stock: Number(stock) || 10,
         featured: featured === true || featured === 'true',
         rating: 4.5,
-        language: language || 'English'
+        language: language || 'English',
+        publisher: publisher || '',
+        pages: Number(pages) || 0,
+        publishYear: Number(publishYear) || new Date().getFullYear(),
+        isbn: isbn || '',
+        availabilityStatus: availabilityStatus || 'In Stock'
       };
 
       db.books.push(newBook);
@@ -348,7 +481,12 @@ router.post('/', verifyAdmin, async (req, res) => {
         coverImage,
         stock,
         featured,
-        language
+        language,
+        publisher,
+        pages,
+        publishYear,
+        isbn,
+        availabilityStatus
       });
 
       await newBook.save();
@@ -363,7 +501,10 @@ router.post('/', verifyAdmin, async (req, res) => {
 // @desc    Update an existing book (Admin only)
 router.put('/:id', verifyAdmin, async (req, res) => {
   const isMock = process.env.USE_MOCK_DB === 'true';
-  const { title, author, price, category, description, coverImage, stock, featured, language } = req.body;
+  const { 
+    title, author, price, category, description, coverImage, stock, featured, language,
+    publisher, pages, publishYear, isbn, availabilityStatus 
+  } = req.body;
 
   try {
     if (isMock) {
@@ -384,7 +525,12 @@ router.put('/:id', verifyAdmin, async (req, res) => {
         coverImage: coverImage || db.books[index].coverImage,
         stock: stock !== undefined ? Number(stock) : db.books[index].stock,
         featured: featured !== undefined ? (featured === true || featured === 'true') : db.books[index].featured,
-        language: language || db.books[index].language
+        language: language || db.books[index].language,
+        publisher: publisher !== undefined ? publisher : db.books[index].publisher,
+        pages: pages !== undefined ? Number(pages) : db.books[index].pages,
+        publishYear: publishYear !== undefined ? Number(publishYear) : db.books[index].publishYear,
+        isbn: isbn !== undefined ? isbn : db.books[index].isbn,
+        availabilityStatus: availabilityStatus || db.books[index].availabilityStatus
       };
 
       db.books[index] = updatedBook;
@@ -393,7 +539,10 @@ router.put('/:id', verifyAdmin, async (req, res) => {
     } else {
       const updatedBook = await Book.findByIdAndUpdate(
         req.params.id,
-        { title, author, price, category, description, coverImage, stock, featured, language },
+        { 
+          title, author, price, category, description, coverImage, stock, featured, language,
+          publisher, pages, publishYear, isbn, availabilityStatus 
+        },
         { new: true, runValidators: true }
       );
 
