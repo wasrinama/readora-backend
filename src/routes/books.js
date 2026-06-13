@@ -5,6 +5,215 @@ import { verifyAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Transliteration maps for Thanglish/Tamil phonetic conversion
+const independentVowels = {
+  'அ': 'a', 'ஆ': 'aa', 'இ': 'i', 'ஈ': 'ee', 'உ': 'u', 'ஊ': 'oo',
+  'எ': 'e', 'ஏ': 'ae', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'oo', 'ஔ': 'au',
+  'ஃ': 'h'
+};
+
+const consonants = {
+  'க': 'k', 'ங': 'ng', 'ச': 's', 'ஞ': 'ny', 'ட': 't', 'ண': 'n',
+  'த': 'th', 'ந': 'n', 'ப': 'p', 'ம': 'm', 'ய': 'y', 'ர': 'r',
+  'ல': 'l', 'வ': 'v', 'ழ': 'zh', 'ள': 'l', 'ற': 'r', 'ன': 'n',
+  'ஜ': 'j', 'ஷ': 'sh', 'ஸ': 's', 'ஹ': 'h'
+};
+
+const vowelDiacritics = {
+  '\u0bbe': 'a', // ா (aa)
+  '\u0bbf': 'i', // ி (i)
+  '\u0bc0': 'ee', // ீ (ee)
+  '\u0bc1': 'u', // ு (u)
+  '\u0bc2': 'oo', // ூ (oo)
+  '\u0bc6': 'e', // ெ (e)
+  '\u0bc7': 'ae', // ே (ae)
+  '\u0bc8': 'ai', // ை (ai)
+  '\u0bca': 'o', // ொ (o)
+  '\u0bcb': 'oo', // ோ (oo)
+  '\u0bcc': 'au', // ௌ (au)
+  '\u0bcd': ''    // ் (pulli)
+};
+
+function transliterateTamilToLatin(text) {
+  if (!text) return '';
+  let result = '';
+  const chars = Array.from(text);
+  
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i];
+    
+    if (independentVowels[char] !== undefined) {
+      result += independentVowels[char];
+    } else if (consonants[char] !== undefined) {
+      const nextChar = chars[i + 1];
+      if (nextChar && vowelDiacritics[nextChar] !== undefined) {
+        result += consonants[char] + vowelDiacritics[nextChar];
+        i++; // Skip the diacritic character
+      } else {
+        result += consonants[char] + 'a';
+      }
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+function normalizePhonetic(str) {
+  if (!str) return '';
+  
+  // Transliterate Tamil to Latin
+  let res = transliterateTamilToLatin(str).toLowerCase();
+  
+  // Normalize vowels
+  res = res.replace(/aa/g, 'a')
+           .replace(/ee/g, 'i')
+           .replace(/oo/g, 'u')
+           .replace(/ae/g, 'e')
+           .replace(/ow/g, 'au')
+           .replace(/y/g, 'i');
+           
+  // Normalize consonants
+  res = res.replace(/ch/g, 's')
+           .replace(/sh/g, 's')
+           .replace(/c/g, 's')
+           .replace(/z/g, 's')
+           .replace(/zh/g, 'l')
+           .replace(/th/g, 't')
+           .replace(/d/g, 't')
+           .replace(/g/g, 'k')
+           .replace(/b/g, 'p')
+           .replace(/w/g, 'v');
+           
+  // Remove duplicate consecutive characters
+  let clean = '';
+  for (let i = 0; i < res.length; i++) {
+    if (res[i] !== res[i - 1]) {
+      clean += res[i];
+    }
+  }
+  return clean;
+}
+
+function getLevenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+// Function to score search relevance
+function scoreBookRelevance(book, search) {
+  const query = search.trim();
+  const cleanQuery = query.toLowerCase();
+  const cleanTitle = book.title.trim().toLowerCase();
+  const cleanAuthor = book.author.trim().toLowerCase();
+  const cleanDesc = (book.description || '').trim().toLowerCase();
+  
+  const normQuery = normalizePhonetic(query);
+  const flatQuery = normQuery.replace(/\s+/g, '');
+  
+  const normTitle = normalizePhonetic(book.title);
+  const flatTitle = normTitle.replace(/\s+/g, '');
+  
+  const normAuthor = normalizePhonetic(book.author);
+  const flatAuthor = normAuthor.replace(/\s+/g, '');
+  
+  const normDesc = normalizePhonetic(book.description || '');
+  const flatDesc = normDesc.replace(/\s+/g, '');
+  
+  const normPub = book.publisher ? normalizePhonetic(book.publisher) : '';
+  const flatPub = normPub.replace(/\s+/g, '');
+
+  let score = 0;
+
+  // 1. Exact matches (Tamil or English)
+  if (cleanQuery === cleanTitle) {
+    score += 1000;
+  } else if (cleanQuery === cleanAuthor) {
+    score += 800;
+  }
+  
+  // 2. Phonetic exact match (spaces ignored, e.g. "ponniyinselvan" vs "ponniyin selvan")
+  else if (flatQuery === flatTitle) {
+    score += 700;
+  } else if (flatQuery === flatAuthor) {
+    score += 600;
+  }
+  
+  // 3. Substring match on original text
+  else if (cleanTitle.includes(cleanQuery)) {
+    score += 500;
+  } else if (cleanAuthor.includes(cleanQuery)) {
+    score += 400;
+  }
+  
+  // 4. Substring match on phonetic text
+  else if (normTitle.includes(normQuery)) {
+    score += 300;
+  } else if (normAuthor.includes(normQuery)) {
+    score += 250;
+  }
+  
+  // 5. Fuzzy Levenshtein match on title
+  else {
+    const titleDist = getLevenshteinDistance(flatQuery, flatTitle);
+    const maxLenTitle = Math.max(flatQuery.length, flatTitle.length);
+    if (titleDist <= 2 || (maxLenTitle > 4 && titleDist / maxLenTitle <= 0.3)) {
+      score += Math.max(0, 200 - titleDist * 30);
+    }
+    
+    // Fuzzy Levenshtein match on author
+    const authorDist = getLevenshteinDistance(flatQuery, flatAuthor);
+    const maxLenAuthor = Math.max(flatQuery.length, flatAuthor.length);
+    if (authorDist <= 2 || (maxLenAuthor > 4 && authorDist / maxLenAuthor <= 0.3)) {
+      score += Math.max(0, 150 - authorDist * 30);
+    }
+  }
+
+  // 6. Individual word matches (partial matching)
+  const queryWords = normQuery.split(/\s+/).filter(Boolean);
+  const titleWords = normTitle.split(/\s+/).filter(Boolean);
+  const authorWords = normAuthor.split(/\s+/).filter(Boolean);
+
+  let wordMatches = 0;
+  for (const qw of queryWords) {
+    if (qw.length < 2) continue; // Skip single letter search words
+    
+    const matchesTitle = titleWords.some(tw => tw.includes(qw) || getLevenshteinDistance(qw, tw) <= 1);
+    const matchesAuthor = authorWords.some(aw => aw.includes(qw) || getLevenshteinDistance(qw, aw) <= 1);
+    const matchesDesc = normDesc.includes(qw);
+    const matchesPub = normPub && normPub.includes(qw);
+    
+    if (matchesTitle || matchesAuthor || matchesDesc || matchesPub) {
+      wordMatches++;
+    }
+  }
+
+  if (queryWords.length > 0 && wordMatches > 0) {
+    score += (wordMatches / queryWords.length) * 100;
+  }
+
+  return score;
+}
+
 // @route   GET /api/books
 // @desc    Get all books with optional search and category filters
 router.get('/', async (req, res) => {
@@ -12,9 +221,11 @@ router.get('/', async (req, res) => {
   const isMock = process.env.USE_MOCK_DB === 'true';
 
   try {
+    let books = [];
+
     if (isMock) {
       const db = readFallbackData();
-      let books = [...db.books];
+      books = [...db.books];
 
       // Filter by category
       if (category && category !== 'All') {
@@ -30,17 +241,6 @@ router.get('/', async (req, res) => {
       if (featured === 'true') {
         books = books.filter(b => b.featured === true);
       }
-
-      // Filter by search (title or author)
-      if (search) {
-        const query = search.toLowerCase();
-        books = books.filter(b => 
-          b.title.toLowerCase().includes(query) || 
-          b.author.toLowerCase().includes(query)
-        );
-      }
-
-      return res.json(books);
     } else {
       let filter = {};
 
@@ -56,16 +256,28 @@ router.get('/', async (req, res) => {
         filter.featured = true;
       }
 
-      if (search) {
-        filter.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { author: { $regex: search, $options: 'i' } }
-        ];
-      }
-
-      const books = await Book.find(filter).sort({ createdAt: -1 });
-      res.json(books);
+      // Fetch from MongoDB
+      books = await Book.find(filter);
     }
+
+    // Apply intelligent phonetic search sorting if query is provided
+    if (search) {
+      books = books
+        .map(b => {
+          const bookObj = b.toObject ? b.toObject() : b;
+          return {
+            ...bookObj,
+            _searchScore: scoreBookRelevance(bookObj, search)
+          };
+        })
+        .filter(b => b._searchScore > 0)
+        .sort((a, b) => b._searchScore - a._searchScore);
+    } else if (!isMock) {
+      // Sort by latest created if not mock and no search query
+      books.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    res.json(books);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving books', error: error.message });
   }
@@ -225,3 +437,4 @@ router.delete('/:id', verifyAdmin, async (req, res) => {
 });
 
 export default router;
+export { scoreBookRelevance, normalizePhonetic, transliterateTamilToLatin };
