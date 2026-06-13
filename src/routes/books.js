@@ -5,21 +5,32 @@ import { verifyAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Transliteration maps for Thanglish/Tamil phonetic conversion
+// Transliteration maps for Thanglish/Tamil/Sinhala phonetic conversion
 const independentVowels = {
+  // Tamil
   'அ': 'a', 'ஆ': 'aa', 'இ': 'i', 'ஈ': 'ee', 'உ': 'u', 'ஊ': 'oo',
   'எ': 'e', 'ஏ': 'ae', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'oo', 'ஔ': 'au',
-  'ஃ': 'h'
+  'ஃ': 'h',
+  // Sinhala
+  'අ': 'a', 'ආ': 'aa', 'ඇ': 'ae', 'ඈ': 'aae', 'ඉ': 'i', 'ඊ': 'ee',
+  'උ': 'u', 'ඌ': 'oo', 'එ': 'e', 'ඒ': 'ae', 'ඔ': 'o', 'ඕ': 'oo'
 };
 
 const consonants = {
+  // Tamil
   'க': 'k', 'ங': 'ng', 'ச': 's', 'ஞ': 'ny', 'ட': 't', 'ண': 'n',
   'த': 'th', 'ந': 'n', 'ப': 'p', 'ம': 'm', 'ய': 'y', 'ர': 'r',
   'ல': 'l', 'வ': 'v', 'ழ': 'zh', 'ள': 'l', 'ற': 'r', 'ன': 'n',
-  'ஜ': 'j', 'ஷ': 'sh', 'ஸ': 's', 'ஹ': 'h'
+  'ஜ': 'j', 'ஷ': 'sh', 'ஸ': 's', 'ஹ': 'h',
+  // Sinhala
+  'ක': 'k', 'ග': 'g', 'ච': 'ch', 'ජ': 'j', 'ට': 't', 'ඩ': 'd',
+  'ණ': 'n', 'ත': 'th', 'ද': 'd', 'න': 'n', 'ප': 'p', 'බ': 'b',
+  'ම': 'm', 'ය': 'y', 'ර': 'r', 'ල': 'l', 'ව': 'v', 'ස': 's',
+  'ஹ': 'h', 'හ': 'h', 'ළ': 'l'
 };
 
 const vowelDiacritics = {
+  // Tamil diacritics
   '\u0bbe': 'a', // ா (aa)
   '\u0bbf': 'i', // ி (i)
   '\u0bc0': 'ee', // ீ (ee)
@@ -31,7 +42,20 @@ const vowelDiacritics = {
   '\u0bca': 'o', // ொ (o)
   '\u0bcb': 'oo', // ோ (oo)
   '\u0bcc': 'au', // ௌ (au)
-  '\u0bcd': ''    // ் (pulli)
+  '\u0bcd': '',   // ் (pulli)
+  // Sinhala diacritics
+  '\u0dcf': 'a',   // ා
+  '\u0dd0': 'ae',  // ැ
+  '\u0dd1': 'aae', // ෑ
+  '\u0dd2': 'i',   // ි
+  '\u0dd3': 'ee',  // ී
+  '\u0dd4': 'u',   // ු
+  '\u0dd6': 'oo',  // ූ
+  '\u0dd9': 'e',   // ෙ
+  '\u0dda': 'ae',  // ේ
+  '\u0ddc': 'o',   // ො
+  '\u0ddd': 'oo',  // ෝ
+  '\u0dca': ''     // ් (hal kireema)
 };
 
 function transliterateTamilToLatin(text) {

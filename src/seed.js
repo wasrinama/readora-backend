@@ -9,7 +9,7 @@ dotenv.config();
 const sampleCategories = [
   { name: "Fiction" },
   { name: "Non Fiction" },
-  { name: "Kavithai (Poetry)" },
+  { name: "Kavithai (Poem)" },
   { name: "Novel" },
   { name: "Short Stories" },
   { name: "History" },
@@ -257,17 +257,29 @@ const seedDB = async () => {
       writeFallbackData(db);
       console.log('✅  JSON fallback database seeded successfully with', db.books.length, 'books and', db.categories.length, 'categories.');
     } else {
-      console.log('🌱  Seeding MongoDB database...');
+      console.log('🌱  Seeding MongoDB database (Safe mode)...');
       
-      // Seed Categories
-      await Category.deleteMany({});
-      const seededCategories = await Category.insertMany(sampleCategories);
-      console.log(`✅  Seeded ${seededCategories.length} categories.`);
+      // Seed Categories (Insert only if not exists)
+      let seededCatCount = 0;
+      for (const cat of sampleCategories) {
+        const exists = await Category.findOne({ name: cat.name });
+        if (!exists) {
+          await new Category(cat).save();
+          seededCatCount++;
+        }
+      }
+      console.log(`✅  Seeded ${seededCatCount} new categories.`);
 
-      // Seed Books
-      await Book.deleteMany({});
-      const seededBooks = await Book.insertMany(sampleBooks);
-      console.log(`✅  Seeded ${seededBooks.length} books.`);
+      // Seed Books (Insert only if not exists)
+      let seededBookCount = 0;
+      for (const b of sampleBooks) {
+        const exists = await Book.findOne({ title: b.title });
+        if (!exists) {
+          await new Book(b).save();
+          seededBookCount++;
+        }
+      }
+      console.log(`✅  Seeded ${seededBookCount} new books.`);
 
       console.log('✅  MongoDB database seeded successfully.');
     }
