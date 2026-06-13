@@ -18,7 +18,7 @@
       "title": "Atomic Habits",
       "author": "James Clear",
       "price": 2400,
-      "category": "Business",
+      "category": "Non Fiction",
       "description": "No matter your goals, Atomic Habits offers a proven framework for improving—every day. James Clear, one of the world's leading experts on habit formation, reveals practical strategies.",
       "coverImage": "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=600",
       "rating": 4.9,
@@ -31,7 +31,7 @@
       "title": "Educated",
       "author": "Tara Westover",
       "price": 2100,
-      "category": "Education",
+      "category": "Non Fiction",
       "description": "An unforgettable memoir about a young girl who, kept out of school, leaves her survivalist family and goes on to earn a PhD from Cambridge University.",
       "coverImage": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=600",
       "rating": 4.7,
@@ -44,7 +44,7 @@
       "title": "Thinking, Fast and Slow",
       "author": "Daniel Kahneman",
       "price": 2900,
-      "category": "Business",
+      "category": "Non Fiction",
       "description": "Daniel Kahneman, the renowned psychologist and winner of the Nobel Prize in Economics, takes us on a groundbreaking tour of the mind.",
       "coverImage": "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600",
       "rating": 4.6,
@@ -57,7 +57,7 @@
       "title": "The Selfish Gene",
       "author": "Richard Dawkins",
       "price": 2200,
-      "category": "Science",
+      "category": "Non Fiction",
       "description": "Richard Dawkins' brilliant reformulation of the theory of natural selection has become a classic work of science, widely praised.",
       "coverImage": "https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=600",
       "rating": 4.5,
@@ -70,7 +70,7 @@
       "title": "A Brief History of Time",
       "author": "Stephen Hawking",
       "price": 2600,
-      "category": "Science",
+      "category": "Non Fiction",
       "description": "Stephen Hawking, one of the most brilliant theoretical physicists of our time, guides us through the cosmology of black holes, space, and time.",
       "coverImage": "https://images.unsplash.com/photo-1618666012174-83b441c0bc76?auto=format&fit=crop&q=80&w=600",
       "rating": 4.8,
@@ -83,7 +83,7 @@
       "title": "The Lean Startup",
       "author": "Eric Ries",
       "price": 2500,
-      "category": "Business",
+      "category": "Non Fiction",
       "description": "How today's entrepreneurs use continuous innovation to create radically successful businesses. It provides a scientific approach to creating and managing startups.",
       "coverImage": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=600",
       "rating": 4.7,
@@ -96,7 +96,7 @@
       "title": "Rich Dad Poor Dad",
       "author": "Robert T. Kiyosaki",
       "price": 1950,
-      "category": "Business",
+      "category": "Non Fiction",
       "description": "Explodes the myth that you need to earn a high income to be rich and explains the difference between working for money and having your money work for you.",
       "coverImage": "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=600",
       "rating": 4.8,
@@ -254,51 +254,31 @@
     },
     {
       "_id": "cat_3",
-      "name": "Kavithai (Poem)"
-    },
-    {
-      "_id": "cat_4",
-      "name": "Novel"
-    },
-    {
-      "_id": "cat_5",
-      "name": "Short Stories"
-    },
-    {
-      "_id": "cat_6",
-      "name": "History"
-    },
-    {
-      "_id": "cat_7",
-      "name": "Education"
-    },
-    {
-      "_id": "cat_8",
       "name": "Children's Books"
     },
     {
+      "_id": "cat_4",
+      "name": "Competitive Exams"
+    },
+    {
+      "_id": "cat_5",
+      "name": "School Books"
+    },
+    {
+      "_id": "cat_6",
+      "name": "Magazines"
+    },
+    {
+      "_id": "cat_7",
+      "name": "Gifts"
+    },
+    {
+      "_id": "cat_8",
+      "name": "Stationery"
+    },
+    {
       "_id": "cat_9",
-      "name": "Religion"
-    },
-    {
-      "_id": "cat_10",
-      "name": "Biography"
-    },
-    {
-      "_id": "cat_11",
-      "name": "Science"
-    },
-    {
-      "_id": "cat_12",
-      "name": "Technology"
-    },
-    {
-      "_id": "cat_13",
-      "name": "Business"
-    },
-    {
-      "_id": "cat_14",
-      "name": "Self Development"
+      "name": "Kavi (Poem)"
     }
   ]
 }

@@ -15,7 +15,7 @@ async function runTests() {
     // 1. Verify Categories Seeding
     const categories = await Category.find();
     console.log(`📂 Categories count in database: ${categories.length}`);
-    const expectedCategories = ["Fiction", "Non Fiction", "Novel", "History", "Business", "Self Development"];
+    const expectedCategories = ["Fiction", "Non Fiction", "Children's Books", "Competitive Exams", "School Books", "Magazines", "Gifts", "Stationery", "Kavi (Poem)"];
     for (const exp of expectedCategories) {
       const exists = categories.some(c => c.name.toLowerCase() === exp.toLowerCase());
       if (exists) {
@@ -56,7 +56,7 @@ async function runTests() {
       title: "Ponniyin Selvan (Tamil)",
       author: "Kalki Krishnamurthy",
       publisher: "Vikatan Publications",
-      category: "Novel",
+      category: "Fiction",
       language: "Tamil",
       isbn: "978-8184762945",
       description: "Ponniyin Selvan is a historic Tamil historical fiction novel..."
@@ -67,7 +67,7 @@ async function runTests() {
       { q: "kalki", expectedMin: 200 },
       { q: "vikatan", expectedMin: 200 },
       { q: "978-8184762945", expectedMin: 900 },
-      { q: "novel", expectedMin: 200 },
+      { q: "fiction", expectedMin: 200 },
       { q: "tamil", expectedMin: 150 }
     ];
 
