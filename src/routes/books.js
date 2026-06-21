@@ -2,8 +2,19 @@ import express from 'express';
 import { readFallbackData, writeFallbackData } from '../config/db.js';
 import Book from '../models/Book.js';
 import { verifyAdmin } from '../middleware/auth.js';
+import { slugify } from '../utils/slugify.js';
 
 const router = express.Router();
+
+const addDynamicSlug = (book) => {
+  if (!book) return book;
+  const bookObj = book.toObject ? book.toObject() : book;
+  if (!bookObj.slug) {
+    bookObj.slug = slugify(bookObj.title);
+  }
+  return bookObj;
+};
+
 
 // Transliteration maps for Thanglish/Tamil/Sinhala phonetic conversion
 const independentVowels = {
@@ -334,7 +345,7 @@ router.get('/', async (req, res) => {
       books.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
-    res.json(books);
+    res.json(books.map(addDynamicSlug));
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving books', error: error.message });
   }
@@ -411,7 +422,8 @@ router.get('/suggestions', async (req, res) => {
           author: bookObj.author,
           coverImage: bookObj.coverImage,
           category: bookObj.category,
-          language: bookObj.language
+          language: bookObj.language,
+          slug: bookObj.slug || slugify(bookObj.title)
         });
       }
 
@@ -434,6 +446,130 @@ router.get('/suggestions', async (req, res) => {
   }
 });
 
+// @route   GET /api/books/meta/authors
+// @desc    Get all unique authors
+router.get('/meta/authors', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let books = [];
+    if (isMock) {
+      books = readFallbackData().books || [];
+    } else {
+      books = await Book.find({});
+    }
+    const authors = Array.from(new Set(books.map(b => b.author).filter(Boolean)));
+    const authorsData = authors.map(name => ({
+      name,
+      slug: slugify(name)
+    }));
+    res.json(authorsData);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving authors', error: error.message });
+  }
+});
+
+// @route   GET /api/books/meta/publishers
+// @desc    Get all unique publishers
+router.get('/meta/publishers', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let books = [];
+    if (isMock) {
+      books = readFallbackData().books || [];
+    } else {
+      books = await Book.find({});
+    }
+    const publishers = Array.from(new Set(books.map(b => b.publisher).filter(Boolean)));
+    const publishersData = publishers.map(name => ({
+      name,
+      slug: slugify(name)
+    }));
+    res.json(publishersData);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving publishers', error: error.message });
+  }
+});
+
+// @route   GET /api/books/slug/:slug
+// @desc    Get a single book by slug
+router.get('/slug/:slug', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let book = null;
+    if (isMock) {
+      const db = readFallbackData();
+      book = db.books.find(b => b.slug === req.params.slug || slugify(b.title) === req.params.slug);
+    } else {
+      book = await Book.findOne({ slug: req.params.slug });
+      if (!book) {
+        // Fallback for older books: fetch all and match in-memory
+        const allBooks = await Book.find({});
+        book = allBooks.find(b => slugify(b.title) === req.params.slug);
+      }
+    }
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+    res.json(addDynamicSlug(book));
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving book details', error: error.message });
+  }
+});
+
+// @route   GET /api/books/author/:slug
+// @desc    Get books by author slug
+router.get('/author/:slug', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let books = [];
+    if (isMock) {
+      books = readFallbackData().books || [];
+    } else {
+      books = await Book.find({});
+    }
+    const filtered = books.filter(b => slugify(b.author) === req.params.slug);
+    res.json(filtered.map(addDynamicSlug));
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving books by author', error: error.message });
+  }
+});
+
+// @route   GET /api/books/publisher/:slug
+// @desc    Get books by publisher slug
+router.get('/publisher/:slug', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let books = [];
+    if (isMock) {
+      books = readFallbackData().books || [];
+    } else {
+      books = await Book.find({});
+    }
+    const filtered = books.filter(b => slugify(b.publisher) === req.params.slug);
+    res.json(filtered.map(addDynamicSlug));
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving books by publisher', error: error.message });
+  }
+});
+
+// @route   GET /api/books/category/:slug
+// @desc    Get books by category slug
+router.get('/category/:slug', async (req, res) => {
+  const isMock = process.env.USE_MOCK_DB === 'true';
+  try {
+    let books = [];
+    if (isMock) {
+      books = readFallbackData().books || [];
+    } else {
+      books = await Book.find({});
+    }
+    const filtered = books.filter(b => slugify(b.category) === req.params.slug);
+    res.json(filtered.map(addDynamicSlug));
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving books by category', error: error.message });
+  }
+});
+
 // @route   GET /api/books/:id
 // @desc    Get a single book by ID
 router.get('/:id', async (req, res) => {
@@ -446,13 +582,13 @@ router.get('/:id', async (req, res) => {
       if (!book) {
         return res.status(404).json({ message: 'Book not found' });
       }
-      return res.json(book);
+      return res.json(addDynamicSlug(book));
     } else {
       const book = await Book.findById(req.params.id);
       if (!book) {
         return res.status(404).json({ message: 'Book not found' });
       }
-      res.json(book);
+      res.json(addDynamicSlug(book));
     }
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving book details', error: error.message });
@@ -496,7 +632,7 @@ router.post('/', verifyAdmin, async (req, res) => {
 
       db.books.push(newBook);
       writeFallbackData(db);
-      res.status(201).json(newBook);
+      res.status(201).json(addDynamicSlug(newBook));
     } else {
       const newBook = new Book({
         title,
@@ -516,7 +652,7 @@ router.post('/', verifyAdmin, async (req, res) => {
       });
 
       await newBook.save();
-      res.status(201).json(newBook);
+      res.status(201).json(addDynamicSlug(newBook));
     }
   } catch (error) {
     res.status(500).json({ message: 'Error creating book', error: error.message });
@@ -561,7 +697,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
 
       db.books[index] = updatedBook;
       writeFallbackData(db);
-      res.json(updatedBook);
+      res.json(addDynamicSlug(updatedBook));
     } else {
       const updatedBook = await Book.findByIdAndUpdate(
         req.params.id,
@@ -575,7 +711,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
       if (!updatedBook) {
         return res.status(404).json({ message: 'Book not found' });
       }
-      res.json(updatedBook);
+      res.json(addDynamicSlug(updatedBook));
     }
   } catch (error) {
     res.status(500).json({ message: 'Error updating book', error: error.message });

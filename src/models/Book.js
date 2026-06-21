@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import { slugify } from '../utils/slugify.js';
+
 
 const bookSchema = new mongoose.Schema({
   title: {
@@ -71,9 +73,20 @@ const bookSchema = new mongoose.Schema({
     type: String,
     enum: ['In Stock', 'Out of Stock', 'Pre-Order'],
     default: 'In Stock'
+  },
+  slug: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
+});
+
+bookSchema.pre('save', function(next) {
+  if (this.isModified('title') || !this.slug) {
+    this.slug = slugify(this.title);
+  }
+  next();
 });
 
 const Book = mongoose.model('Book', bookSchema);
