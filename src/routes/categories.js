@@ -55,7 +55,8 @@ router.post('/', verifyAdmin, async (req, res) => {
       writeFallbackData(db);
       res.status(201).json(newCategory);
     } else {
-      const exists = await Category.findOne({ name: { $regex: new RegExp(`^${categoryName}$`, 'i') } });
+      const escapedCategoryName = categoryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const exists = await Category.findOne({ name: { $regex: new RegExp(`^${escapedCategoryName}$`, 'i') } });
       if (exists) {
         return res.status(400).json({ message: 'Category already exists' });
       }

@@ -300,11 +300,13 @@ router.get('/', async (req, res) => {
       let filter = {};
 
       if (category && category !== 'All') {
-        filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+        const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.category = { $regex: new RegExp(`^${escapedCategory}$`, 'i') };
       }
 
       if (language && language !== 'All') {
-        filter.language = { $regex: new RegExp(`^${language}$`, 'i') };
+        const escapedLanguage = language.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.language = { $regex: new RegExp(`^${escapedLanguage}$`, 'i') };
       }
 
       if (featured === 'true') {
